@@ -1,0 +1,365 @@
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>Team Scorekeeper</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  margin: 0;
+  background: #111827;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+main {
+  max-width: 480px;
+  margin: auto;
+  padding: 20px;
+}
+h1 {
+  text-align: center;
+  font-size: 26px;
+  margin: 16px 0 24px;
+}
+button {
+  border: none;
+  border-radius: 14px;
+  color: white;
+  background: #334155;
+  font-size: 22px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:active {
+  opacity: 0.7;
+}
+.teams {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.teams button {
+  min-height: 105px;
+}
+.back {
+  min-height: 48px;
+  padding: 8px 20px;
+  font-size: 17px;
+}
+.display {
+  background: #020617;
+  border-radius: 14px;
+  text-align: right;
+  font-size: 48px;
+  padding: 20px;
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+}
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.keypad button {
+  min-height: 72px;
+  font-size: 30px;
+}
+.signs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.signs button {
+  min-height: 54px;
+}
+.active {
+  background: #2563eb;
+}
+.subtract.active {
+  background: #dc2626;
+}
+.submit {
+  background: #16a34a;
+}
+.full {
+  width: 100%;
+  min-height: 65px;
+  margin-top: 18px;
+}
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1e293b;
+  padding: 17px;
+  border-radius: 12px;
+  margin-bottom: 9px;
+  font-size: 21px;
+}
+.highlight {
+  background: #166534;
+}
+.caption {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+}
+.message {
+  text-align: center;
+  color: #86efac;
+  font-size: 18px;
+  margin-bottom: 18px;
+}
+[hidden] {
+  display: none !important;
+}
+</style>
+</head>
+
+<body>
+<main>
+
+<section id="page1">
+  <h1>Select Team</h1>
+  <div class="teams" id="teamButtons"></div>
+  <button class="full" onclick="showLeaderboard(false)">
+    View Leaderboard
+  </button>
+</section>
+
+<section id="page2" hidden>
+  <button class="back" onclick="showPage(1)">
+    ← Back
+  </button>
+
+  <h1 id="teamTitle"></h1>
+
+  <div class="display" id="display">0</div>
+
+  <div class="signs">
+    <button id="plus" onclick="setSign(1)">+ Add</button>
+    <button id="minus" class="subtract"
+      onclick="setSign(-1)">− Subtract</button>
+  </div>
+
+  <div class="keypad">
+    <button onclick="digit(7)">7</button>
+    <button onclick="digit(8)">8</button>
+    <button onclick="digit(9)">9</button>
+
+    <button onclick="digit(4)">4</button>
+    <button onclick="digit(5)">5</button>
+    <button onclick="digit(6)">6</button>
+
+    <button onclick="digit(1)">1</button>
+    <button onclick="digit(2)">2</button>
+    <button onclick="digit(3)">3</button>
+
+    <button onclick="erase()">⌫</button>
+    <button onclick="digit(0)">0</button>
+    <button class="submit" onclick="submitScore()">✓</button>
+  </div>
+
+  <p class="caption" id="currentScore"></p>
+</section>
+
+<section id="page3" hidden>
+  <h1>Team Leaderboard</h1>
+  <div class="message" id="confirmation"></div>
+  <div id="leaderboard"></div>
+
+  <button class="full submit" onclick="showPage(1)">
+    Next Entry
+  </button>
+</section>
+
+</main>
+
+<script>
+const STORAGE_KEY = "team-scorekeeper-v1";
+
+let transactions = [];
+
+try {
+  transactions = JSON.parse(
+    localStorage.getItem(STORAGE_KEY) || "[]"
+  );
+
+  if (!Array.isArray(transactions)) {
+    throw new Error("Invalid score data");
+  }
+} catch (error) {
+  alert("Saved scores could not be loaded. Do not enter new scores.");
+  throw error;
+}
+
+let selectedTeam = 1;
+let amount = "0";
+let sign = 1;
+let submitting = false;
+
+function getTotals() {
+  const totals = Array(8).fill(0);
+
+  transactions.forEach(entry => {
+    totals[entry.team - 1] += entry.points;
+  });
+
+  return totals;
+}
+
+function showPage(number) {
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById("page" + i).hidden =
+      i !== number;
+  }
+  window.scrollTo(0, 0);
+}
+
+for (let i = 1; i <= 8; i++) {
+  const button = document.createElement("button");
+  button.textContent = "Team " + i;
+  button.onclick = () => selectTeam(i);
+  document.getElementById("teamButtons").appendChild(button);
+}
+
+function selectTeam(team) {
+  selectedTeam = team;
+  amount = "0";
+  sign = 1;
+
+  document.getElementById("teamTitle").textContent =
+    "Team " + team;
+
+  document.getElementById("currentScore").textContent =
+    "Current total: " + getTotals()[team - 1];
+
+  updateDisplay();
+  showPage(2);
+}
+
+function digit(number) {
+  if (amount.length >= 8) return;
+
+  amount = amount === "0"
+    ? String(number)
+    : amount + number;
+
+  updateDisplay();
+}
+
+function erase() {
+  amount = amount.slice(0, -1) || "0";
+  updateDisplay();
+}
+
+function setSign(value) {
+  sign = value;
+  updateDisplay();
+}
+
+function updateDisplay() {
+  document.getElementById("display").textContent =
+    (sign < 0 ? "−" : "+") + amount;
+
+  document.getElementById("plus").classList.toggle(
+    "active", sign === 1
+  );
+
+  document.getElementById("minus").classList.toggle(
+    "active", sign === -1
+  );
+}
+
+function submitScore() {
+  if (submitting) return;
+
+  const points = Number(amount) * sign;
+
+  if (!Number.isSafeInteger(points) || points === 0) {
+    alert("Enter a non-zero points value.");
+    return;
+  }
+
+  submitting = true;
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    team: selectedTeam,
+    points: points
+  };
+
+  const updated = [...transactions, entry];
+
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(updated)
+    );
+  } catch (error) {
+    alert("Unable to save score. Entry was not recorded.");
+    submitting = false;
+    return;
+  }
+
+  transactions = updated;
+  amount = "0";
+
+  showLeaderboard(true);
+  submitting = false;
+}
+
+function showLeaderboard(newEntry) {
+  const totals = getTotals();
+  const board = document.getElementById("leaderboard");
+  const confirmation = document.getElementById("confirmation");
+
+  board.innerHTML = "";
+  confirmation.textContent = "";
+
+  if (newEntry) {
+    const last = transactions[transactions.length - 1];
+
+    confirmation.textContent =
+      "Team " + last.team + ": " +
+      (last.points > 0 ? "+" : "") +
+      last.points + " points recorded";
+  }
+
+  const ranking = totals.map((points, index) => ({
+    team: index + 1,
+    points: points
+  })).sort((a, b) =>
+    b.points - a.points || a.team - b.team
+  );
+
+  ranking.forEach(item => {
+    const row = document.createElement("div");
+
+    row.className = "score-row" +
+      (newEntry && item.team === selectedTeam
+        ? " highlight" : "");
+
+    row.innerHTML =
+      "<span>Team " + item.team + "</span>" +
+      "<strong>" + item.points.toLocaleString() +
+      "</strong>";
+
+    board.appendChild(row);
+  });
+
+  showPage(3);
+}
+</script>
+
+</body>
+</html>
